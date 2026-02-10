@@ -83,6 +83,9 @@ uint8_t score = 0;
 // Track previous button states for edge detection
 bool lastUp = false, lastDown = false, lastLeft = false, lastRight = false;
 
+// Only allow one direction change per snake move
+bool directionChanged = false;
+
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(115200);
@@ -143,12 +146,19 @@ void setup() {
     demoHead = (demoHead + 1) % pathLength;
   }
   
+  // Seed random with time spent on title screen
+  randomSeed(millis());
+
   // Clear frame for game start
   for (int y = 0; y < 8; y++) {
     for (int x = 0; x < 12; x++) {
       frame[y][x] = 0;
     }
   }
+
+  // Generate first food position randomly
+  foodX = random(12);
+  foodY = random(8);
 
   gameStartJingle();
 }
@@ -162,28 +172,32 @@ void loop() {
     bool currLeft = digitalRead(left) == HIGH;
     bool currRight = digitalRead(right) == HIGH;
 
-    if (currUp && !lastUp) {
+    if (!directionChanged && currUp && !lastUp) {
       if (direction != 2) {
         direction = 3;
         tone(BUZZER, 800, 30);
+        directionChanged = true;
       }
     }
-    if (currDown && !lastDown) {
+    if (!directionChanged && currDown && !lastDown) {
       if (direction != 3) {
         direction = 2;
         tone(BUZZER, 800, 30);
+        directionChanged = true;
       }
     }
-    if (currLeft && !lastLeft) {
+    if (!directionChanged && currLeft && !lastLeft) {
       if (direction != 0) {
         direction = 1;
         tone(BUZZER, 800, 30);
+        directionChanged = true;
       }
     }
-    if (currRight && !lastRight) {
+    if (!directionChanged && currRight && !lastRight) {
       if (direction != 1) {
         direction = 0;
         tone(BUZZER, 800, 30);
+        directionChanged = true;
       }
     }
 
@@ -224,8 +238,7 @@ void loop() {
     if (foodX == charX && foodY == charY) {
       score++;
       tailLength = score + 2;
-
-
+      tone(BUZZER, 1200, 50);
       generateFood();
     }
 
@@ -246,6 +259,7 @@ void loop() {
 
     speed = 66 + (400 - 66) * exp(-score * 3 / 100.0);
     lastSnakeMove = msNow;
+    directionChanged = false;
   }
 }
 
@@ -383,6 +397,44 @@ void gameOverJingle() {
   delay(450);
 }
 
+void resetGame() {
+  // Reset snake position and direction
+  charX = 2;
+  charY = 2;
+  direction = 2;
+  tailLength = 2;
+  score = 0;
+  speed = 400;
+  
+  // Clear tail arrays
+  for (int i = 0; i < 96; i++) {
+    snaketailX[i] = 0;
+    snaketailY[i] = 0;
+  }
+  
+  // Clear frame
+  for (int y = 0; y < 8; y++) {
+    for (int x = 0; x < 12; x++) {
+      frame[y][x] = 0;
+    }
+  }
+  
+  // Generate new food position
+  randomSeed(millis());
+  foodX = random(12);
+  foodY = random(8);
+  
+  // Reset button states
+  lastUp = false;
+  lastDown = false;
+  lastLeft = false;
+  lastRight = false;
+  directionChanged = false;
+  
+  // Reset timing
+  lastGameTickTime = lastTickTime = lastSnakeMove = millis();
+}
+
 void gameOver() {
   Serial.println("GAME OVER");
   Serial.print("Your score was: ");
@@ -390,7 +442,17 @@ void gameOver() {
 
   gameOverJingle();
   rippleAnimation();
-  displayScore(score);
 
-  while (1) {}
+  // Wait for button release first
+  while (digitalRead(up) == HIGH || digitalRead(down) == HIGH || 
+         digitalRead(left) == HIGH || digitalRead(right) == HIGH) {
+  }
+  
+  // Wait for button press to restart
+  while (digitalRead(up) == LOW && digitalRead(down) == LOW && 
+         digitalRead(left) == LOW && digitalRead(right) == LOW) {
+  }
+  
+  resetGame();
+  gameStartJingle();
 }
