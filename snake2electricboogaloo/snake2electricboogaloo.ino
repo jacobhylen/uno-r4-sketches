@@ -96,6 +96,60 @@ void setup() {
   pinMode(5, INPUT);
   pinMode(BUZZER, OUTPUT);
 
+  // Demo snake path (zigzag across the matrix)
+  const int pathLength = 96;
+  const int pathX[96] = {
+    0,1,2,3,4,5,6,7,8,9,10,11,  // row 0: left to right
+    11,10,9,8,7,6,5,4,3,2,1,0,  // row 1: right to left
+    0,1,2,3,4,5,6,7,8,9,10,11,  // row 2: left to right
+    11,10,9,8,7,6,5,4,3,2,1,0,  // row 3: right to left
+    0,1,2,3,4,5,6,7,8,9,10,11,  // row 4: left to right
+    11,10,9,8,7,6,5,4,3,2,1,0,  // row 5: right to left
+    0,1,2,3,4,5,6,7,8,9,10,11,  // row 6: left to right
+    11,10,9,8,7,6,5,4,3,2,1,0,  // row 7: right to left
+  };
+  const int pathY[96] = {
+    0,0,0,0,0,0,0,0,0,0,0,0,
+    1,1,1,1,1,1,1,1,1,1,1,1,
+    2,2,2,2,2,2,2,2,2,2,2,2,
+    3,3,3,3,3,3,3,3,3,3,3,3,
+    4,4,4,4,4,4,4,4,4,4,4,4,
+    5,5,5,5,5,5,5,5,5,5,5,5,
+    6,6,6,6,6,6,6,6,6,6,6,6,
+    7,7,7,7,7,7,7,7,7,7,7,7,
+  };
+  int demoHead = 5;
+  const int demoLength = 6;
+
+  // Wait for any button press to start, showing demo snake
+  while (digitalRead(up) == LOW && digitalRead(down) == LOW && 
+         digitalRead(left) == LOW && digitalRead(right) == LOW) {
+    // Clear frame
+    for (int y = 0; y < 8; y++) {
+      for (int x = 0; x < 12; x++) {
+        frame[y][x] = 0;
+      }
+    }
+    
+    // Draw demo snake
+    for (int i = 0; i < demoLength; i++) {
+      int idx = (demoHead - i + pathLength) % pathLength;
+      frame[pathY[idx]][pathX[idx]] = 1;
+    }
+    
+    matrix.renderBitmap(frame, 8, 12);
+    delay(100);
+    
+    demoHead = (demoHead + 1) % pathLength;
+  }
+  
+  // Clear frame for game start
+  for (int y = 0; y < 8; y++) {
+    for (int x = 0; x < 12; x++) {
+      frame[y][x] = 0;
+    }
+  }
+
   gameStartJingle();
 }
 
