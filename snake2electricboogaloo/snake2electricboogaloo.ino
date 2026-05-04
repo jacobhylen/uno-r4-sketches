@@ -24,10 +24,13 @@ Sketch written by Jacob Hylén & Ubi de Feo.
 
 How to play:
 - connect pushbuttons with 10kOhm pull-down resistors to D2, D3, D4, & D5.
+- connect a Piezo buzzer to D11 for sound effects (optional)
 - Upload the sketch.
 - Enjoy!
 
-Your score will be printed to the Serial Monitor on death.
+On sketch start, a demo animation will play on the matrix. Start the game by pressing any button.
+
+Your score will be written on the Matrix on death, and also printed to the Serial Monitor.
 */
 
 #include "Arduino_LED_Matrix.h"
@@ -53,16 +56,14 @@ unsigned long lastTickTime, lastGameTickTime, lastSnakeMove;
 #define ROWS 8
 #define COLUMNS 12
 
-#define down 5
-#define up 4
-#define left 2
-#define right 3
+#define down 4
+#define up 5
+#define left 3
+#define right 2
 #define BUZZER 11
 
 uint8_t direction = 2;
 int speed = 400;
-
-uint8_t pointX = 0, pointY = 0;
 uint8_t charX = 2, charY = 2;
 uint8_t oldcharX = 4, oldcharY = 2;
 
@@ -74,7 +75,7 @@ int snaketailY[96]{
 
 };
 
-int tailLength = 2;
+int tailLength = 3;
 
 uint8_t foodX = 5, foodY = 6;
 
@@ -99,52 +100,7 @@ void setup() {
   pinMode(5, INPUT);
   pinMode(BUZZER, OUTPUT);
 
-  // Demo snake path (zigzag across the matrix)
-  const int pathLength = 96;
-  const int pathX[96] = {
-    0,1,2,3,4,5,6,7,8,9,10,11,  // row 0: left to right
-    11,10,9,8,7,6,5,4,3,2,1,0,  // row 1: right to left
-    0,1,2,3,4,5,6,7,8,9,10,11,  // row 2: left to right
-    11,10,9,8,7,6,5,4,3,2,1,0,  // row 3: right to left
-    0,1,2,3,4,5,6,7,8,9,10,11,  // row 4: left to right
-    11,10,9,8,7,6,5,4,3,2,1,0,  // row 5: right to left
-    0,1,2,3,4,5,6,7,8,9,10,11,  // row 6: left to right
-    11,10,9,8,7,6,5,4,3,2,1,0,  // row 7: right to left
-  };
-  const int pathY[96] = {
-    0,0,0,0,0,0,0,0,0,0,0,0,
-    1,1,1,1,1,1,1,1,1,1,1,1,
-    2,2,2,2,2,2,2,2,2,2,2,2,
-    3,3,3,3,3,3,3,3,3,3,3,3,
-    4,4,4,4,4,4,4,4,4,4,4,4,
-    5,5,5,5,5,5,5,5,5,5,5,5,
-    6,6,6,6,6,6,6,6,6,6,6,6,
-    7,7,7,7,7,7,7,7,7,7,7,7,
-  };
-  int demoHead = 5;
-  const int demoLength = 6;
-
-  // Wait for any button press to start, showing demo snake
-  while (digitalRead(up) == LOW && digitalRead(down) == LOW && 
-         digitalRead(left) == LOW && digitalRead(right) == LOW) {
-    // Clear frame
-    for (int y = 0; y < 8; y++) {
-      for (int x = 0; x < 12; x++) {
-        frame[y][x] = 0;
-      }
-    }
-    
-    // Draw demo snake
-    for (int i = 0; i < demoLength; i++) {
-      int idx = (demoHead - i + pathLength) % pathLength;
-      frame[pathY[idx]][pathX[idx]] = 1;
-    }
-    
-    matrix.renderBitmap(frame, 8, 12);
-    delay(100);
-    
-    demoHead = (demoHead + 1) % pathLength;
-  }
+  showDemoScreen();
   
   // Seed random with time spent on title screen
   randomSeed(millis());
@@ -237,10 +193,14 @@ void loop() {
 
     if (foodX == charX && foodY == charY) {
       score++;
-      tailLength = score + 2;
+      tailLength = score + 3;
       tone(BUZZER, 1200, 50);
       generateFood();
     }
+
+    // Save tail end position before shifting (to clear from frame later)
+    int tailEndX = snaketailX[tailLength - 1];
+    int tailEndY = snaketailY[tailLength - 1];
 
     for (int i = tailLength; i > 0; i--) {
       snaketailX[i] = snaketailX[i - 1];
@@ -249,7 +209,9 @@ void loop() {
     snaketailX[0] = charX;
     snaketailY[0] = charY;
 
-    frame[snaketailY[tailLength - 1]][snaketailX[tailLength - 1]] = 0;
+    if (tailEndX >= 0 && tailEndY >= 0) {
+      frame[tailEndY][tailEndX] = 0;
+    }
 
     if (frame[charY][charX] == 1) {
       gameOver();
@@ -286,36 +248,7 @@ const uint8_t digits[10][5] = {
   {0b111, 0b101, 0b111, 0b001, 0b111}  // 9
 };
 
-void displayScore(uint8_t s) {
-  // Clear frame
-  for (int y = 0; y < 8; y++) {
-    for (int x = 0; x < 12; x++) {
-      frame[y][x] = 0;
-    }
-  }
 
-  int tens = s / 10;
-  int ones = s % 10;
-
-  // Draw tens digit at column 1, ones digit at column 6
-  // Vertically centered (start at row 1)
-  for (int row = 0; row < 5; row++) {
-    if (tens > 0) {
-      for (int col = 0; col < 3; col++) {
-        if (digits[tens][row] & (0b100 >> col)) {
-          frame[row + 1][col + 1] = 1;
-        }
-      }
-    }
-    for (int col = 0; col < 3; col++) {
-      if (digits[ones][row] & (0b100 >> col)) {
-        frame[row + 1][col + (tens > 0 ? 6 : 4)] = 1;
-      }
-    }
-  }
-
-  matrix.renderBitmap(frame, 8, 12);
-}
 
 void rippleAnimation() {
   // Center of the matrix
@@ -402,14 +335,14 @@ void resetGame() {
   charX = 2;
   charY = 2;
   direction = 2;
-  tailLength = 2;
+  tailLength = 3;
   score = 0;
   speed = 400;
   
-  // Clear tail arrays
+  // Clear tail arrays (use -1 to mark as invalid, not 0 which is a valid position)
   for (int i = 0; i < 96; i++) {
-    snaketailX[i] = 0;
-    snaketailY[i] = 0;
+    snaketailX[i] = -1;
+    snaketailY[i] = -1;
   }
   
   // Clear frame
@@ -435,6 +368,53 @@ void resetGame() {
   lastGameTickTime = lastTickTime = lastSnakeMove = millis();
 }
 
+void showDemoScreen() {
+  // Demo snake path (zigzag across the matrix)
+  const int pathLength = 96;
+  const int pathX[96] = {
+    0,1,2,3,4,5,6,7,8,9,10,11,
+    11,10,9,8,7,6,5,4,3,2,1,0,
+    0,1,2,3,4,5,6,7,8,9,10,11,
+    11,10,9,8,7,6,5,4,3,2,1,0,
+    0,1,2,3,4,5,6,7,8,9,10,11,
+    11,10,9,8,7,6,5,4,3,2,1,0,
+    0,1,2,3,4,5,6,7,8,9,10,11,
+    11,10,9,8,7,6,5,4,3,2,1,0,
+  };
+  const int pathY[96] = {
+    0,0,0,0,0,0,0,0,0,0,0,0,
+    1,1,1,1,1,1,1,1,1,1,1,1,
+    2,2,2,2,2,2,2,2,2,2,2,2,
+    3,3,3,3,3,3,3,3,3,3,3,3,
+    4,4,4,4,4,4,4,4,4,4,4,4,
+    5,5,5,5,5,5,5,5,5,5,5,5,
+    6,6,6,6,6,6,6,6,6,6,6,6,
+    7,7,7,7,7,7,7,7,7,7,7,7,
+  };
+  int demoHead = 5;
+  const int demoLength = 6;
+
+  // Show demo snake until button press
+  while (digitalRead(up) == LOW && digitalRead(down) == LOW && 
+         digitalRead(left) == LOW && digitalRead(right) == LOW) {
+    for (int y = 0; y < 8; y++) {
+      for (int x = 0; x < 12; x++) {
+        frame[y][x] = 0;
+      }
+    }
+    
+    for (int i = 0; i < demoLength; i++) {
+      int idx = (demoHead - i + pathLength) % pathLength;
+      frame[pathY[idx]][pathX[idx]] = 1;
+    }
+    
+    matrix.renderBitmap(frame, 8, 12);
+    delay(100);
+    
+    demoHead = (demoHead + 1) % pathLength;
+  }
+}
+
 void gameOver() {
   Serial.println("GAME OVER");
   Serial.print("Your score was: ");
@@ -448,9 +428,17 @@ void gameOver() {
          digitalRead(left) == HIGH || digitalRead(right) == HIGH) {
   }
   
-  // Wait for button press to restart
+  // Wait for button press to restart, or timeout after 10 seconds
+  unsigned long startWait = millis();
   while (digitalRead(up) == LOW && digitalRead(down) == LOW && 
          digitalRead(left) == LOW && digitalRead(right) == LOW) {
+    if (millis() - startWait > 10000) {
+      // Timeout - go back to demo screen
+      showDemoScreen();
+      resetGame();
+      gameStartJingle();
+      return;
+    }
   }
   
   resetGame();
